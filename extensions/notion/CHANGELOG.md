@@ -3,6 +3,7 @@
 ## [Add Text to Daily Note] - 2026-10-08
 
 - Add an Add Text to Daily Note command that appends markdown to today's page in a Daily Notes database.
+- Add an Open Daily Note command that opens today's Daily Notes page in Notion.
 
 ## [Fix Links, Search Results, and Connection Recovery] - 2026-09-25
 

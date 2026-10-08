@@ -507,3 +507,69 @@ test("Add Text to Daily Note does not close or report success after a rejected a
   assert.equal(closed, false);
   assert.ok(!toasts.some((toast) => toast.style === "success"));
 });
+
+function loadOpenDailyNote({
+  findTodaysDailyNote,
+  describeDailyNoteError = () => ({ title: "failed", message: "nope" }),
+}) {
+  const toasts = [];
+  const opened = [];
+  let closed = false;
+  const load = createLoader({
+    "@raycast/api": {
+      Toast: { Style: { Success: "success", Animated: "animated", Failure: "failure" } },
+      getPreferenceValues: () => ({
+        daily_notes_database: "Daily Notes",
+        daily_note_date_format: "MMM d, yyyy",
+        open_in: { name: "Notion" },
+      }),
+      showToast: async (toast) => {
+        toasts.push(toast);
+      },
+      closeMainWindow: async () => {
+        closed = true;
+      },
+    },
+    "@raycast/utils": { withAccessToken: () => (fn) => fn },
+    "./utils/notion/dailyNote": { findTodaysDailyNote, describeDailyNoteError },
+    "./utils/notion/oauth": { notionService: {} },
+    "./utils/openPage": {
+      urlForPreferredMethod: (url) => url,
+      openPageUrl: async (url) => {
+        opened.push(url);
+      },
+    },
+  });
+  return {
+    command: load("src/open-daily-note.ts").default,
+    toasts,
+    opened,
+    get closed() {
+      return closed;
+    },
+  };
+}
+
+test("Open Daily Note opens today's looked-up page", async () => {
+  const context = loadOpenDailyNote({
+    findTodaysDailyNote: async () => ({ pageId: "ab-cd", dateTitle: "Oct 8, 2026", databaseName: "Daily Notes" }),
+  });
+  await context.command();
+  assert.deepEqual(context.opened, ["https://www.notion.so/abcd"]);
+  assert.equal(context.closed, true);
+});
+
+test("Open Daily Note does not open Notion when today's page is missing", async () => {
+  const context = loadOpenDailyNote({
+    findTodaysDailyNote: async () => {
+      const error = new Error("missing");
+      error.name = "MissingDailyNotePageError";
+      throw error;
+    },
+    describeDailyNoteError: () => ({ title: "No daily note", message: "not yet" }),
+  });
+  await context.command();
+  assert.deepEqual(context.opened, []);
+  assert.equal(context.closed, false);
+  assert.ok(context.toasts.some((toast) => toast.style === "failure" && toast.title === "No daily note"));
+});

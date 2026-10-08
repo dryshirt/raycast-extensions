@@ -202,25 +202,14 @@
           "placeholder": "Text",
           "required": false
         }
-      ],
-      "preferences": [
-        {
-          "name": "daily_notes_database",
-          "type": "textfield",
-          "title": "Daily Notes Database",
-          "required": false,
-          "default": "Daily Notes",
-          "description": "Name of the Notion database that holds one page per day."
-        },
-        {
-          "name": "daily_note_date_format",
-          "type": "textfield",
-          "title": "Date Page Format",
-          "required": false,
-          "default": "MMM d, yyyy",
-          "description": "date-fns format used as the title of today's daily note, e.g. MMM d, yyyy for Oct 8, 2026."
-        }
       ]
+    },
+    {
+      "name": "open-daily-note",
+      "title": "Open Daily Note",
+      "subtitle": "Notion",
+      "description": "Open today's page in your Daily Notes database.",
+      "mode": "no-view"
     }
   ],
   "tools": [
@@ -380,6 +369,22 @@
       "default": false,
       "description": "Show properties in page previews.",
       "label": "Show properties in page previews."
+    },
+    {
+      "name": "daily_notes_database",
+      "type": "textfield",
+      "title": "Daily Notes Database",
+      "required": false,
+      "default": "Daily Notes",
+      "description": "Name of the Notion database that holds one page per day."
+    },
+    {
+      "name": "daily_note_date_format",
+      "type": "textfield",
+      "title": "Date Page Format",
+      "required": false,
+      "default": "MMM d, yyyy",
+      "description": "date-fns format used as the title of today's daily note, e.g. MMM d, yyyy for Oct 8, 2026."
     }
   ],
   "dependencies": {

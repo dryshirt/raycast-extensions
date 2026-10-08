@@ -23,13 +23,8 @@ type AddTextToDailyNoteValues = {
   textToAppend: string;
 };
 
-type DailyNotePreferences = {
-  daily_notes_database: string;
-  daily_note_date_format: string;
-};
-
 function AddTextToDailyNote(props: LaunchProps<{ arguments: { text?: string } }>) {
-  const { daily_notes_database, daily_note_date_format } = getPreferenceValues<DailyNotePreferences>();
+  const { daily_notes_database, daily_note_date_format } = getPreferenceValues();
   const dateTitle = getDateTitle(daily_note_date_format);
 
   const { itemProps, handleSubmit } = useForm<AddTextToDailyNoteValues>({
