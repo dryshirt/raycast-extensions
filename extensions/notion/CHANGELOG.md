@@ -1,5 +1,9 @@
 # Notion Changelog
 
+## [Add Text to Daily Note] - 2026-10-08
+
+- Add an Add Text to Daily Note command that appends markdown to today's page in a Daily Notes database.
+
 ## [Fix Links, Search Results, and Connection Recovery] - 2026-09-25
 
 - Fix Copy Formatted URL pasting only the title into plain-text apps. It now includes a Markdown link while preserving the rich-text link.

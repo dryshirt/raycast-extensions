@@ -14,6 +14,7 @@ function setup({
   const requests = [];
   const toasts = [];
   const events = [];
+  const storage = {};
   let tokens = storedToken ? { accessToken: storedToken } : undefined;
   const api = {
     getPreferenceValues: () => ({ notion_token: secret }),
@@ -34,6 +35,15 @@ function setup({
       },
     },
     Toast: { Style: { Failure: "failure", Success: "success", Animated: "animated" } },
+    LocalStorage: {
+      getItem: async (key) => storage[key],
+      setItem: async (key, value) => {
+        storage[key] = value;
+      },
+      removeItem: async (key) => {
+        delete storage[key];
+      },
+    },
     showToast: async (toast) => {
       toasts.push(toast);
     },
@@ -378,6 +388,122 @@ test("Add Text to Page does not close or report success after a rejected append"
   });
   load("src/add-text-to-page.tsx").default({ arguments: {} });
   await submit({ page: "page", textToAppend: "Note", prepend: false, addDateDivider: false });
+  assert.equal(closed, false);
+  assert.ok(!toasts.some((toast) => toast.style === "success"));
+});
+
+const dailyNoteDate = new Date(2026, 9, 8);
+
+test("daily note lookup appends to today's page matched by title", async () => {
+  const { load, requests } = setup({
+    respond: ({ url, body }) => {
+      if (url.includes("/search")) return list([dataSource("source", "Daily Notes")]);
+      if (url.endsWith("/query")) return list([notionPage("today", "Oct 8, ", "2026")]);
+      return { object: "user", id: "bot" };
+    },
+  });
+  const { findTodaysDailyNote, getDateTitle } = load("src/utils/notion/dailyNote.ts");
+  const dateTitle = getDateTitle("MMM d, yyyy", dailyNoteDate);
+  const result = await findTodaysDailyNote("Daily Notes", "MMM d, yyyy", dailyNoteDate);
+  assert.equal(result.pageId, "today");
+  assert.equal(result.dateTitle, dateTitle);
+  const query = requests.find((request) => request.url.endsWith("/query"));
+  assert.deepEqual(query.body.filter, { property: "title", title: { equals: dateTitle } });
+});
+
+test("daily note lookup falls back to a date property when the title format differs", async () => {
+  const { load, requests } = setup({
+    respond: ({ url, body }) => {
+      if (url.includes("/search")) return list([dataSource("source", "Daily Notes")]);
+      if (url.endsWith("/query")) {
+        if (body.filter?.title) return list([]);
+        return list([notionPage("by-date", "Thursday")]);
+      }
+      if (url.includes("/data_sources/")) {
+        return {
+          ...dataSource("source", "Daily Notes"),
+          properties: {
+            Name: { id: "title", name: "Name", type: "title", title: {} },
+            Date: { id: "date", name: "Date", type: "date", date: {} },
+          },
+        };
+      }
+      return { object: "user", id: "bot" };
+    },
+  });
+  const { findTodaysDailyNote } = load("src/utils/notion/dailyNote.ts");
+  const result = await findTodaysDailyNote("Daily Notes", "MMM d, yyyy", dailyNoteDate);
+  assert.equal(result.pageId, "by-date");
+  const dateQuery = requests.find((request) => request.url.endsWith("/query") && request.body.filter?.date);
+  assert.equal(dateQuery.body.filter.property, "Date");
+  assert.equal(dateQuery.body.filter.date.equals, "2026-10-08");
+});
+
+test("daily note lookup fails when today's page is missing", async () => {
+  const { load } = setup({
+    respond: ({ url }) => {
+      if (url.includes("/search")) return list([dataSource("source", "Daily Notes")]);
+      if (url.endsWith("/query")) return list([]);
+      if (url.includes("/data_sources/")) {
+        return {
+          ...dataSource("source", "Daily Notes"),
+          properties: { Name: { id: "title", name: "Name", type: "title", title: {} } },
+        };
+      }
+      return { object: "user", id: "bot" };
+    },
+  });
+  const { findTodaysDailyNote, MissingDailyNotePageError, getDateTitle } = load("src/utils/notion/dailyNote.ts");
+  await assert.rejects(
+    () => findTodaysDailyNote("Daily Notes", "MMM d, yyyy", dailyNoteDate),
+    (error) => {
+      assert.equal(error.name, "MissingDailyNotePageError");
+      assert.equal(error.dateTitle, getDateTitle("MMM d, yyyy", dailyNoteDate));
+      return error instanceof MissingDailyNotePageError;
+    },
+  );
+});
+
+test("Add Text to Daily Note does not close or report success after a rejected append", async () => {
+  let submit;
+  let closed = false;
+  const toasts = [];
+  const jsx = (type, props) => ({ type, props });
+  const load = createLoader({
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    react: { useState: (initial) => [initial, () => {}] },
+    "@raycast/api": {
+      Action: { SubmitForm: "submit" },
+      ActionPanel: "actions",
+      Form: { Description: "description", Dropdown: { Item: "item" } },
+      Icon: {},
+      Toast: { Style: { Success: "success", Animated: "animated", Failure: "failure" } },
+      getPreferenceValues: () => ({ daily_notes_database: "Daily Notes", daily_note_date_format: "MMM d, yyyy" }),
+      showToast: async (toast) => {
+        toasts.push(toast);
+      },
+      closeMainWindow: async () => {
+        closed = true;
+      },
+    },
+    "@raycast/utils": {
+      withAccessToken: () => (fn) => fn,
+      FormValidation: { Required: "required" },
+      useForm: ({ onSubmit }) => {
+        submit = onSubmit;
+        return { itemProps: {} };
+      },
+    },
+    "./utils/notion": { appendBlockToPage: async () => undefined },
+    "./utils/notion/dailyNote": {
+      findTodaysDailyNote: async () => ({ pageId: "today", dateTitle: "Oct 8, 2026", databaseName: "Daily Notes" }),
+      describeDailyNoteError: () => ({ title: "failed", message: "nope" }),
+      getDateTitle: () => "Oct 8, 2026",
+    },
+    "./utils/notion/oauth": { notionService: {} },
+  });
+  load("src/add-text-to-daily-note.tsx").default({ arguments: {} });
+  await submit({ textToAppend: "Note", prepend: false, addDateDivider: false });
   assert.equal(closed, false);
   assert.ok(!toasts.some((toast) => toast.style === "success"));
 });
