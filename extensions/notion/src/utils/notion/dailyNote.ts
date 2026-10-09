@@ -2,8 +2,8 @@ import { APIErrorCode, ClientErrorCode, collectPaginatedAPI, isNotionClientError
 import { LocalStorage } from "@raycast/api";
 import { format } from "date-fns";
 
+import { getDateTitle } from "./dateTitle";
 import { pageMapper } from "./global";
-import { getDateTitle } from "./notes";
 import { getNotionClient } from "./oauth";
 
 export { getDateTitle };

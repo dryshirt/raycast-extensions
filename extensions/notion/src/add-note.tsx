@@ -11,17 +11,13 @@ import {
   showToast,
 } from "@raycast/api";
 import { useForm, withAccessToken } from "@raycast/utils";
-import { useState } from "react";
 
-import { useSearchPages } from "./hooks";
-import { getPageIcon } from "./utils/notion";
-import { NoteStyle, addNote, describeAddNoteError, getDateTitle } from "./utils/notion/notes";
+import { addNote, describeAddNoteError, getDateTitle } from "./utils/notion/notes";
 import { notionService } from "./utils/notion/oauth";
 import { urlForPreferredMethod, openPageUrl } from "./utils/openPage";
 
 type AddNoteValues = {
   note: string;
-  parentPage: string;
 };
 
 function pageUrl(pageId: string) {
@@ -29,13 +25,10 @@ function pageUrl(pageId: string) {
 }
 
 function AddNote(props: LaunchProps<{ arguments: Arguments.AddNote }>) {
-  const { notes_page_name, note_style, note_date_format, open_in } = getPreferenceValues<Preferences.AddNote>();
+  const { daily_notes_database, daily_note_date_format, open_in } = getPreferenceValues();
+  const dateTitle = getDateTitle(daily_note_date_format);
 
-  const [searchText, setSearchText] = useState("");
-  const { data, isLoading } = useSearchPages(searchText);
-  const pages = data?.pages.filter((page) => page.object === "page");
-
-  const { itemProps, handleSubmit, setValidationError } = useForm<AddNoteValues>({
+  const { itemProps, handleSubmit } = useForm<AddNoteValues>({
     initialValues: {
       note: props.arguments.note ?? "",
     },
@@ -43,12 +36,14 @@ function AddNote(props: LaunchProps<{ arguments: Arguments.AddNote }>) {
       try {
         await showToast({ style: Toast.Style.Animated, title: "Adding note" });
 
-        const { datePageId, dateTitle } = await addNote({
+        const {
+          pageId,
+          title,
+          dateTitle: destinationTitle,
+        } = await addNote({
           note: values.note.trim(),
-          rootName: notes_page_name,
-          dateFormat: note_date_format,
-          style: note_style as NoteStyle,
-          parentPageId: values.parentPage || undefined,
+          databaseName: daily_notes_database,
+          dateFormat: daily_note_date_format,
         });
 
         await closeMainWindow();
@@ -56,16 +51,14 @@ function AddNote(props: LaunchProps<{ arguments: Arguments.AddNote }>) {
         await showToast({
           style: Toast.Style.Success,
           title: "Note added",
-          message: `${notes_page_name} › ${dateTitle}`,
+          message: `${destinationTitle} › ${title}`,
           primaryAction: {
             title: "Open Page",
-            onAction: () => openPageUrl(urlForPreferredMethod(pageUrl(datePageId), open_in), open_in),
+            onAction: () => openPageUrl(urlForPreferredMethod(pageUrl(pageId), open_in), open_in),
           },
         });
       } catch (err) {
-        const { title, message, field } = describeAddNoteError(err, notes_page_name);
-        // Keep the reason on the field itself; the toast disappears before it can be read.
-        if (field) setValidationError(field, message);
+        const { title, message } = describeAddNoteError(err, daily_notes_database);
         await showToast({ style: Toast.Style.Failure, title, message });
       }
     },
@@ -78,7 +71,6 @@ function AddNote(props: LaunchProps<{ arguments: Arguments.AddNote }>) {
 
   return (
     <Form
-      isLoading={isLoading}
       actions={
         <ActionPanel>
           <Action.SubmitForm onSubmit={handleSubmit} title="Add Note" icon={Icon.Plus} />
@@ -93,22 +85,7 @@ function AddNote(props: LaunchProps<{ arguments: Arguments.AddNote }>) {
         enableMarkdown
       />
 
-      <Form.Description title="Destination" text={`${notes_page_name} › ${getDateTitle(note_date_format)}`} />
-
-      <Form.Dropdown
-        {...itemProps.parentPage}
-        title="Parent Page"
-        info={`Only used the first time: Notion can't create top-level pages, so "${notes_page_name}" is created inside this page if it doesn't exist yet.`}
-        onSearchTextChange={setSearchText}
-        filtering={false}
-        throttle
-        storeValue
-      >
-        <Form.Dropdown.Item title={`None — "${notes_page_name}" already exists`} value="" icon={Icon.Minus} />
-        {pages?.map((page) => (
-          <Form.Dropdown.Item key={page.id} title={page.title ?? "Untitled"} value={page.id} icon={getPageIcon(page)} />
-        ))}
-      </Form.Dropdown>
+      <Form.Description title="Destination" text={`${daily_notes_database} › ${dateTitle}`} />
     </Form>
   );
 }

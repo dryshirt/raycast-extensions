@@ -573,3 +573,56 @@ test("Open Daily Note does not open Notion when today's page is missing", async 
   assert.equal(context.closed, false);
   assert.ok(context.toasts.some((toast) => toast.style === "failure" && toast.title === "No daily note"));
 });
+
+test("addNote creates a child page under today's daily note", async () => {
+  const { load, requests } = setup({
+    respond: ({ url, body }) => {
+      if (url.includes("/search")) return list([dataSource("source", "Daily Notes")]);
+      if (url.endsWith("/query") && body.filter?.title) return list([notionPage("today", body.filter.title.equals)]);
+      if (/\/pages$/.test(url))
+        return { object: "page", id: "child", properties: { title: { type: "title", title: [] } } };
+      return { object: "user", id: "bot" };
+    },
+  });
+  const { addNote } = load("src/utils/notion/notes.ts");
+  const result = await addNote({
+    note: "Buy milk\nFrom the store",
+    databaseName: "Daily Notes",
+    dateFormat: "MMM d, yyyy",
+    date: dailyNoteDate,
+  });
+  assert.equal(result.pageId, "child");
+  assert.equal(result.title, "Buy milk");
+  const create = requests.find((request) => /\/pages$/.test(request.url));
+  assert.equal(create.body.parent.page_id, "today");
+  assert.equal(create.body.properties.title.title[0].text.content, "Buy milk");
+  assert.ok(create.body.children?.length > 0);
+});
+
+test("addNote does not create a child page when today's daily note is missing", async () => {
+  const { load, requests } = setup({
+    respond: ({ url }) => {
+      if (url.includes("/search")) return list([dataSource("source", "Daily Notes")]);
+      if (url.endsWith("/query")) return list([]);
+      if (url.includes("/data_sources/")) {
+        return {
+          ...dataSource("source", "Daily Notes"),
+          properties: { Name: { id: "title", name: "Name", type: "title", title: {} } },
+        };
+      }
+      return { object: "user", id: "bot" };
+    },
+  });
+  const { addNote } = load("src/utils/notion/notes.ts");
+  await assert.rejects(
+    () =>
+      addNote({
+        note: "Buy milk",
+        databaseName: "Daily Notes",
+        dateFormat: "MMM d, yyyy",
+        date: dailyNoteDate,
+      }),
+    (error) => error.name === "MissingDailyNotePageError",
+  );
+  assert.ok(!requests.some((request) => /\/pages$/.test(request.url)));
+});

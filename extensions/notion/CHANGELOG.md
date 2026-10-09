@@ -4,6 +4,7 @@
 
 - Add an Add Text to Daily Note command that appends markdown to today's page in a Daily Notes database.
 - Add an Open Daily Note command that opens today's Daily Notes page in Notion.
+- Add Note now creates a subpage inside today's Daily Notes page instead of a NOTES root page.
 
 ## [Fix Links, Search Results, and Connection Recovery] - 2026-09-25
 
